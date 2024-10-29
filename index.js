@@ -35,7 +35,7 @@ mongoose
   // );
 
 
-  const allowedOrigins = ['http://localhost:3000', 'http://localhost:3001'];
+  const allowedOrigins = ['https://zerodha-clone-frontend-vk1h.onrender.com/', 'https://zerodha-clone-dashboard-312i.onrender.com/'];
 
 app.use(cors({
   origin: function (origin, callback) {
