@@ -1,4 +1,7 @@
-require("dotenv").config();
+const dotenv = require('dotenv');
+console.log("dotenv module:", dotenv);
+dotenv.config();
+
 const User = require("../backend/model/UserModel");
 const express = require("express");
 const mongoose = require("mongoose");
