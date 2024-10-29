@@ -51,6 +51,13 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 
+app.listen(PORT, () => {
+  console.log("App started!");
+  mongoose.connect(uri);
+  console.log("DB started!");
+});
+
+
 app.post('/',userVerification)
 app.post('/signup', async (req, res, next) => {
   try {
@@ -305,8 +312,3 @@ app.get("/allOrders",async(req, res) =>{
   res.json(allOrders);
 });
 
-app.listen(PORT, () => {
-  console.log("App started!");
-  mongoose.connect(uri);
-  console.log("DB started!");
-});
