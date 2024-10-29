@@ -8,6 +8,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "dotenv": "^x.x.x",
     "nodemon": "^3.1.7"
   },
   "dependencies": {
