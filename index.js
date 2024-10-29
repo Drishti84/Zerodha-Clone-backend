@@ -1,8 +1,16 @@
 const dotenv = require('dotenv');
-console.log("dotenv module:", dotenv);
-dotenv.config();
+const result = dotenv.config();
 
-const User = require("../backend/model/UserModel");
+if (result.error) {
+  console.error("Error loading dotenv:", result.error);
+} else {
+  console.log("dotenv loaded successfully:", result.parsed);
+}
+
+// Sample to check an environment variable
+console.log("Environment variable TEST_VAR:", process.env.MONGO_URL);
+
+const User = require("./model/UserModel");
 const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
@@ -10,13 +18,13 @@ const cors = require("cors");
 //const authRoute = require("./Routes/AuthRoute");
 const { HoldingsModel } = require("./model/HoldingsModel");
 //const {Signup,Login} = require("./Controllers/AuthController");
-const {userVerification} = require("../backend/Middlewares/AuthMiddleware");
+const {userVerification} = require("./Middlewares/AuthMiddleware");
 const { PositionsModel } = require("./model/PositionsModel");
 const { OrdersModel } = require("./model/OrdersModel");
 const bcrypt = require("bcryptjs");
 const PORT = 3002;
 const uri = process.env.MONGO_URL;
-const {createSecretToken} = require("../backend/util/SecretToken");
+const {createSecretToken} = require("./util/SecretToken");
 const app = express();
 
 
