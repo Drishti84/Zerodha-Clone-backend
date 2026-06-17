@@ -1,14 +1,4 @@
-const dotenv = require('dotenv');
-const result = dotenv.config();
-
-if (result.error) {
-  console.error("Error loading dotenv:", result.error);
-} else {
-  console.log("dotenv loaded successfully:", result.parsed);
-}
-
-// Sample to check an environment variable
-console.log("Environment variable TEST_VAR:", process.env.MONGO_URL);
+require('dotenv').config();
 
 const User = require("./model/UserModel");
 const express = require("express");
@@ -32,11 +22,8 @@ const app = express();
 
 
 mongoose
-  .connect(uri, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("MongoDB is  connected successfully"))
+  .connect(uri)
+  .then(() => console.log("MongoDB connected successfully"))
   .catch((err) => console.error(err));
 
 
@@ -72,9 +59,7 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 
 app.listen(PORT, () => {
-  console.log("App started!");
-  mongoose.connect(uri);
-  console.log("DB started!");
+  console.log("App started on port " + PORT);
 });
 
 
