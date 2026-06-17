@@ -37,8 +37,9 @@ mongoose
 
 
   const allowedOrigins = [
-    'https://zerodha-clone-frontend-vk1h.onrender.com/',
-    'https://zerodha-clone-dashboard-312i.onrender.com/',
+    'https://zerodha-clone-frontend-vk1h.onrender.com',
+    'https://zerodha-clone-dashboard-312i.onrender.com',
+    'https://backend-p8j1.onrender.com',
     'http://localhost:3000',
     'http://localhost:3001',
   ];
