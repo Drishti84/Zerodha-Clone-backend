@@ -15,13 +15,16 @@ const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 //const authRoute = require("./Routes/AuthRoute");
 const { HoldingsModel } = require("./model/HoldingsModel");
 //const {Signup,Login} = require("./Controllers/AuthController");
-const {userVerification} = require("./Middlewares/AuthMiddleware");
+const {userVerification, requireAuth} = require("./Middlewares/AuthMiddleware");
 const { PositionsModel } = require("./model/PositionsModel");
 const { OrdersModel } = require("./model/OrdersModel");
 const bcrypt = require("bcryptjs");
+const YahooFinance = require("yahoo-finance2").default;
+const yahooFinance = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 const PORT = 3002;
 const uri = process.env.MONGO_URL;
 const {createSecretToken} = require("./util/SecretToken");
@@ -46,7 +49,12 @@ mongoose
   // );
 
 
-  const allowedOrigins = ['https://zerodha-clone-frontend-vk1h.onrender.com/', 'https://zerodha-clone-dashboard-312i.onrender.com/'];
+  const allowedOrigins = [
+    'https://zerodha-clone-frontend-vk1h.onrender.com/',
+    'https://zerodha-clone-dashboard-312i.onrender.com/',
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ];
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -61,6 +69,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(bodyParser.json());
+app.use(cookieParser());
 
 app.listen(PORT, () => {
   console.log("App started!");
@@ -293,33 +302,187 @@ app.post('/login', async (req, res, next) => {
 //   res.send("Done!");
 // });
 
-app.get("/allHoldings", async (req, res) => {
-  let allHoldings = await HoldingsModel.find({});
+app.get("/me", requireAuth, async (req, res) => {
+  const user = await User.findById(req.userId);
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  }
+  res.json({ username: user.username, email: user.email });
+});
+
+app.get("/allHoldings", requireAuth, async (req, res) => {
+  let allHoldings = await HoldingsModel.find({ userId: req.userId });
   res.json(allHoldings);
 });
 
-app.get("/allPositions", async (req, res) => {
-  let allPositions = await PositionsModel.find({});
+app.get("/allPositions", requireAuth, async (req, res) => {
+  let allPositions = await PositionsModel.find({ userId: req.userId });
   res.json(allPositions);
 });
 
-app.post("/newOrder", async (req, res) => {
-  console.log(req.body);
-  let newOrder = new OrdersModel({
-    name: req.body.name,
-    qty: req.body.qty,
-    price: req.body.price,
-    mode: req.body.mode,
-  });
+app.post("/newOrder", requireAuth, async (req, res) => {
+  const { name, qty, price, mode } = req.body;
+  const numQty = Number(qty);
+  const numPrice = Number(price);
 
-  newOrder.save();
+  const newOrder = new OrdersModel({
+    userId: req.userId,
+    name,
+    qty: numQty,
+    price: numPrice,
+    mode,
+  });
+  await newOrder.save();
+
+  if (mode === "BUY") {
+    await User.findByIdAndUpdate(req.userId, { $inc: { balance: -(numQty * numPrice) } });
+    const existing = await HoldingsModel.findOne({ userId: req.userId, name });
+    if (existing) {
+      const totalQty = existing.qty + numQty;
+      const newAvg = (existing.avg * existing.qty + numPrice * numQty) / totalQty;
+      existing.qty = totalQty;
+      existing.avg = parseFloat(newAvg.toFixed(2));
+      existing.price = numPrice;
+      await existing.save();
+    } else {
+      await new HoldingsModel({
+        userId: req.userId,
+        name,
+        qty: numQty,
+        avg: numPrice,
+        price: numPrice,
+        net: "0.00%",
+        day: "0.00%",
+      }).save();
+    }
+  } else if (mode === "SELL") {
+    await User.findByIdAndUpdate(req.userId, { $inc: { balance: numQty * numPrice } });
+    const existing = await HoldingsModel.findOne({ userId: req.userId, name });
+    if (existing) {
+      const newQty = existing.qty - numQty;
+      if (newQty <= 0) {
+        await HoldingsModel.deleteOne({ userId: req.userId, name });
+      } else {
+        existing.qty = newQty;
+        await existing.save();
+      }
+    }
+  }
 
   res.send("Order saved!");
 });
 
 
-app.get("/allOrders",async(req, res) =>{
-  let allOrders = await OrdersModel.find({});
+app.get("/allOrders", requireAuth, async(req, res) =>{
+  let allOrders = await OrdersModel.find({ userId: req.userId });
   res.json(allOrders);
+});
+
+app.get("/historical", async (req, res) => {
+  const symbol = (req.query.symbol || "").trim();
+  const period = req.query.period || "1mo";
+
+  if (!symbol) return res.status(400).json({ error: "symbol is required" });
+
+  const now = new Date();
+  const period1 = new Date(now);
+  if (period === "1mo") period1.setMonth(now.getMonth() - 1);
+  else if (period === "3mo") period1.setMonth(now.getMonth() - 3);
+  else if (period === "6mo") period1.setMonth(now.getMonth() - 6);
+  else if (period === "1y") period1.setFullYear(now.getFullYear() - 1);
+  else period1.setMonth(now.getMonth() - 1);
+
+  try {
+    const data = await yahooFinance.historical(`${symbol}.NS`, {
+      period1: period1.toISOString().split("T")[0],
+      period2: now.toISOString().split("T")[0],
+      interval: "1d",
+    });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch historical data" });
+  }
+});
+
+app.get("/fundamentals", async (req, res) => {
+  const symbol = (req.query.symbol || "").trim();
+  if (!symbol) return res.status(400).json({ error: "symbol required" });
+  try {
+    const q = await yahooFinance.quote(`${symbol}.NS`);
+    res.json({
+      name: symbol,
+      longName: q.longName || q.shortName || symbol,
+      price: q.regularMarketPrice,
+      change: q.regularMarketChange,
+      changePercent: q.regularMarketChangePercent,
+      marketCap: q.marketCap,
+      pe: q.trailingPE,
+      fiftyTwoWeekHigh: q.fiftyTwoWeekHigh,
+      fiftyTwoWeekLow: q.fiftyTwoWeekLow,
+      volume: q.regularMarketVolume,
+      avgVolume: q.averageVolume,
+      dividendYield: q.trailingAnnualDividendYield,
+    });
+  } catch (e) {
+    res.status(500).json({ error: "Failed to fetch fundamentals" });
+  }
+});
+
+app.get("/funds", requireAuth, async (req, res) => {
+  let user = await User.findById(req.userId);
+  if (user.balance == null) {
+    user = await User.findByIdAndUpdate(
+      req.userId,
+      { $set: { balance: 100000 } },
+      { new: true }
+    );
+  }
+  const holdings = await HoldingsModel.find({ userId: req.userId });
+  const totalInvestment = holdings.reduce((s, h) => s + h.avg * h.qty, 0);
+  const currentValue = holdings.reduce((s, h) => s + h.price * h.qty, 0);
+  res.json({
+    balance: user.balance,
+    totalInvestment,
+    currentValue,
+    pnl: currentValue - totalInvestment,
+  });
+});
+
+app.post("/addFunds", requireAuth, async (req, res) => {
+  const amount = Number(req.body.amount);
+  if (!amount || amount <= 0) return res.status(400).json({ error: "Invalid amount" });
+  await User.findByIdAndUpdate(req.userId, { $inc: { balance: amount } });
+  res.json({ success: true, added: amount });
+});
+
+app.post("/withdrawFunds", requireAuth, async (req, res) => {
+  const amount = Number(req.body.amount);
+  if (!amount || amount <= 0) return res.status(400).json({ error: "Invalid amount" });
+  const user = await User.findById(req.userId);
+  if (user.balance < amount) return res.status(400).json({ error: "Insufficient balance" });
+  await User.findByIdAndUpdate(req.userId, { $inc: { balance: -amount } });
+  res.json({ success: true, withdrawn: amount });
+});
+
+app.get("/quotes", async (req, res) => {
+  const symbols = (req.query.symbols || "").split(",").map((s) => s.trim()).filter(Boolean);
+
+  const quotes = await Promise.all(
+    symbols.map(async (symbol) => {
+      try {
+        const quote = await yahooFinance.quote(`${symbol}.NS`);
+        return {
+          name: symbol,
+          price: quote.regularMarketPrice,
+          percent: `${quote.regularMarketChangePercent >= 0 ? "+" : ""}${quote.regularMarketChangePercent.toFixed(2)}%`,
+          isDown: quote.regularMarketChangePercent < 0,
+        };
+      } catch (error) {
+        return { name: symbol, error: "Failed to fetch quote" };
+      }
+    })
+  );
+
+  res.json(quotes);
 });
 

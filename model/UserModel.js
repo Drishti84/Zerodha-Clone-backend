@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: new Date(),
   },
+  balance: {
+    type: Number,
+    default: 100000,
+  },
 });
 
 userSchema.pre("save", async function () {
