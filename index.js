@@ -84,6 +84,7 @@ app.post('/signup', async (req, res, next) => {
     next();
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: "Server error. Please try again.", success: false });
   }
 });
 
@@ -115,6 +116,7 @@ app.post('/login', async (req, res, next) => {
      next()
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: "Server error. Please try again.", success: false });
   }
 })
 
