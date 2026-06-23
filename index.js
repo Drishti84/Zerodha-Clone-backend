@@ -453,6 +453,46 @@ app.post("/withdrawFunds", requireAuth, async (req, res) => {
   res.json({ success: true, withdrawn: amount });
 });
 
+app.post("/seedDemo", requireAuth, async (req, res) => {
+  try {
+    const existing = await HoldingsModel.find({ userId: req.userId });
+    if (existing.length > 0) return res.json({ seeded: false });
+
+    const demoHoldings = [
+      { name: "INFY",       qty: 10, avg: 1420.50, price: 1555.45, net: "+9.50%",  day: "-1.60%", isLoss: true  },
+      { name: "TCS",        qty: 5,  avg: 3200.00, price: 3450.80, net: "+7.84%",  day: "-0.25%", isLoss: true  },
+      { name: "RELIANCE",   qty: 8,  avg: 2100.00, price: 2280.40, net: "+8.59%",  day: "+1.44%", isLoss: false },
+      { name: "HDFCBANK",   qty: 15, avg: 1380.00, price: 1522.35, net: "+10.31%", day: "+0.11%", isLoss: false },
+      { name: "WIPRO",      qty: 20, avg: 450.00,  price: 520.75,  net: "+15.72%", day: "+0.32%", isLoss: false },
+      { name: "ITC",        qty: 50, avg: 185.00,  price: 207.90,  net: "+12.38%", day: "+0.80%", isLoss: false },
+      { name: "BAJFINANCE", qty: 3,  avg: 6500.00, price: 7100.00, net: "+9.23%",  day: "+0.65%", isLoss: false },
+    ];
+    for (const h of demoHoldings) {
+      await new HoldingsModel({ userId: req.userId, ...h }).save();
+    }
+
+    const demoOrders = [
+      { name: "INFY",       qty: 10, price: 1420.50, mode: "BUY"  },
+      { name: "TCS",        qty: 5,  price: 3200.00, mode: "BUY"  },
+      { name: "RELIANCE",   qty: 8,  price: 2100.00, mode: "BUY"  },
+      { name: "HDFCBANK",   qty: 15, price: 1380.00, mode: "BUY"  },
+      { name: "WIPRO",      qty: 20, price: 450.00,  mode: "BUY"  },
+      { name: "ITC",        qty: 50, price: 185.00,  mode: "BUY"  },
+      { name: "BAJFINANCE", qty: 3,  price: 6500.00, mode: "BUY"  },
+      { name: "INFY",       qty: 2,  price: 1600.00, mode: "SELL" },
+    ];
+    for (const o of demoOrders) {
+      await new OrdersModel({ userId: req.userId, ...o }).save();
+    }
+
+    await User.findByIdAndUpdate(req.userId, { $set: { balance: 85000 } });
+    res.json({ seeded: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to seed demo data" });
+  }
+});
+
 app.get("/quotes", async (req, res) => {
   const symbols = (req.query.symbols || "").split(",").map((s) => s.trim()).filter(Boolean);
 
