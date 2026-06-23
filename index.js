@@ -81,7 +81,7 @@ app.post('/signup', async (req, res, next) => {
     });
     res
       .status(201)
-      .json({ message: "User signed in successfully", success: true, user });
+      .json({ message: "User signed in successfully", success: true, token, user });
     next();
   } catch (error) {
     console.error(error);
@@ -113,7 +113,7 @@ app.post('/login', async (req, res, next) => {
        withCredentials: true,
        httpOnly: false,
      });
-     res.status(201).json({ message: "User logged in successfully", success: true });
+     res.status(201).json({ message: "User logged in successfully", success: true, token });
      next()
   } catch (error) {
     console.error(error);
